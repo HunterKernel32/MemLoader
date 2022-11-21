@@ -31,6 +31,7 @@ private:
 	PIMAGE_BASE_RELOCATION Mem_List_BRT;
 
 	PVOID FileBuffer;
+	BOOL NeedRepairBRT;
 };
 
 

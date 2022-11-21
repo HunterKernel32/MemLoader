@@ -18,6 +18,7 @@ MemLoadPe::MemLoadPe()
 	LoadBaseAddress = NULL;
 	EntryPointer = 0;
 	IsDll = FALSE;
+	NeedRepairBRT = FALSE;
 }
 
 MemLoadPe::~MemLoadPe()
@@ -76,11 +77,6 @@ bool MemLoadPe::CheckPeLegality()
 		return false;
 	}
 #endif
-	if (PeHeader->OptionalHeader.DataDirectory[5].Size == 0)
-	{
-		printf("Not have BRT list!\n");
-		return false;
-	}
 
 	FileCharacteristics FileCmp;
 	FileCmp.Value = PeHeader->FileHeader.Characteristics;
@@ -128,9 +124,22 @@ bool MemLoadPe::LoadPeHeader()
 
 	SectionHeader = IMAGE_FIRST_SECTION(PeHeader);
 
-	LoadBaseAddress = VirtualAlloc(NULL, PeHeader->OptionalHeader.SizeOfImage, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
+	if (PeHeader->OptionalHeader.DataDirectory[5].Size == 0)
+	{
+		//printf("Not have BRT list!\n");
 
-	if (LoadBaseAddress == NULL) { return false; }
+		LoadBaseAddress = VirtualAlloc((LPVOID)PeHeader->OptionalHeader.ImageBase, 
+			PeHeader->OptionalHeader.SizeOfImage, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
+		printf("VirtualAlloc = %p\n", LoadBaseAddress);
+		if (LoadBaseAddress == NULL) { return false; }
+		NeedRepairBRT = FALSE; //无需修复重定位
+	}
+	else
+	{
+		LoadBaseAddress = VirtualAlloc(NULL, PeHeader->OptionalHeader.SizeOfImage, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
+		if (LoadBaseAddress == NULL) { return false; }
+		NeedRepairBRT = TRUE; //需要修复重定位
+	}
 
 	memcpy(LoadBaseAddress, DosHeader, PeHeader->OptionalHeader.SizeOfHeaders);
 
@@ -243,6 +252,8 @@ bool MemLoadPe::RepairList_IAT()
 
 bool MemLoadPe::RepairList_BRT()
 {
+	if (NeedRepairBRT == FALSE) { return true; }
+
 	int TypeOffsetCount = 0;
 	struct MyWord
 	{

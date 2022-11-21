@@ -18,6 +18,8 @@ int main()
 	printf("IsDll = %d\n", testLoad.IsDll);
 	FreeResource(hGlobal);
 	system("pause");
+	printf("is runing!\n");
+	system("pause");
 	return 0;
 }
 
