@@ -19,7 +19,7 @@ public:
 	MemLoadPe();
 	~MemLoadPe();
 public:
-	HANDLE MemLoadDll(PVOID FileBuffer, PCWCH FileName);
+	HANDLE MemLoadDll(PVOID FileBuffer);
 	ULONG_PTR EntryPointer;
 	PVOID LoadBaseAddress;
 	BOOL IsDll;
@@ -30,7 +30,7 @@ private:
 	bool LoadSectionData(); //加载区段
 	bool RepairList_IAT();  //修复导入地址表
 	bool RepairList_BRT();  //修复基址重定位
-	bool RepairLdrLinks();  //修复LDR链表
+	//bool RepairLdrLinks();  //修复LDR链表
 
 	static void InitUnicodeString(PCWCH String, PUNICODE_STRING64 StringObject);
 	static void CallEntryPoint(MemLoadPe* Object);
@@ -47,7 +47,6 @@ private:
 
 	PVOID FileBuffer;
 	BOOL NeedRepairBRT;
-	PCWCH FileName;
 };
 
 
@@ -55,22 +54,22 @@ union FileCharacteristics
 {
 	struct
 	{
-		WORD NoRelocation : 1;
-		WORD IsExecutable : 1;
-		WORD NoLineNumber : 1;
-		WORD NoSymbolMsg : 1;
-		WORD Aggressively : 1;
-		WORD Is_x64Target : 1;
+		WORD NoRelocation : 1;    //无重定位表
+		WORD IsExecutable : 1;    //可执行
+		WORD NoLineNumber : 1;    //无行号信息
+		WORD NoSymbolMsg : 1;     //无符号信息
+		WORD Aggressively : 1;    //修正工作台
+		WORD Is_x64Target : 1;    //64位平台
 		WORD Unknown : 1;
-		WORD ReverseLowByte : 1;
-		WORD Is_x32Target : 1;
-		WORD NoDebuggingMsg : 1;
-		WORD RemovableMedia : 1;
-		WORD NetworkMedia : 1;
-		WORD IsSystemFile : 1;
-		WORD IsDllFile : 1;
-		WORD SingleProcessor : 1;
-		WORD ReverseHighByte : 1;
+		WORD ReverseLowByte : 1;  //字节反转
+		WORD Is_x32Target : 1;    //32位平台
+		WORD NoDebuggingMsg : 1;  //无调式信息
+		WORD RemovableMedia : 1;  //位于移动介质时提示移动到本地在执行
+		WORD NetworkMedia : 1;    //位于网络时提示移动到本地在执行
+		WORD IsSystemFile : 1;    //是系统文件
+		WORD IsDllFile : 1;       //是动态链接库文件
+		WORD SingleProcessor : 1; //只能运行在单处理器上
+		WORD ReverseHighByte : 1; //高位字节反转
 	}BitField;
 	WORD Value;
 };
@@ -98,6 +97,13 @@ typedef struct _PEB_LDR_DATA_WIN10X64 {
 	LIST_ENTRY64 InInitializationOrderModuleList;
 }PEB_LDR_DATA_WIN10X64, *PPEB_LDR_DATA_WIN10X64;
 
+typedef struct _LDR_DDAG_NODE 
+{
+	//Win10必须有此结构
+	LIST_ENTRY64 Modules;
+	BYTE Unknown[60];
+}LDR_DDAG_NODE, *PLDR_DDAG_NODE;
+
 typedef struct _LDR_DATA_TABLE_ENTRY_WIN10X64
 {
 	LIST_ENTRY64 InLoadOrderLinks;
@@ -111,7 +117,9 @@ typedef struct _LDR_DATA_TABLE_ENTRY_WIN10X64
 	DWORD FlagGroup;
 	WORD LoadCount;
 	WORD TlsIndex;
-	BYTE Unknown[176];
+	BYTE Unknown[36];
+	PVOID64 DdagNode;
+	BYTE Unknown2[132];
 }LDR_DATA_TABLE_ENTRY_WIN10X64, *PLDR_DATA_TABLE_ENTRY_WIN10X64;
 
 typedef struct _CURDIR

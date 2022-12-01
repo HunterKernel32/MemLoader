@@ -19,7 +19,6 @@ MemLoadPe::MemLoadPe()
 	EntryPointer = 0;
 	IsDll = FALSE;
 	NeedRepairBRT = FALSE;
-	FileName = NULL;
 }
 
 MemLoadPe::~MemLoadPe()
@@ -27,7 +26,7 @@ MemLoadPe::~MemLoadPe()
 	
 }
 
-HANDLE MemLoadPe::MemLoadDll(PVOID FileBuffer, PCWCH FileName)
+HANDLE MemLoadPe::MemLoadDll(PVOID FileBuffer)
 {
 	this->FileBuffer = FileBuffer;
 	if (LoadPeHeader() == false)
@@ -50,13 +49,9 @@ HANDLE MemLoadPe::MemLoadDll(PVOID FileBuffer, PCWCH FileName)
 		printf("RepairList_BRT Error!\n");
 		return NULL;
 	}
-	if (FileName != NULL)
-	{
-		this->FileName = FileName;
-		RepairLdrLinks();
-	}
+
 	//CallEntryPoint(this);
-	HANDLE hThread = NULL;//::CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)CallEntryPoint, this, 0, NULL);
+	HANDLE hThread = ::CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)CallEntryPoint, this, 0, NULL);
 	return hThread;
 }
 
@@ -93,26 +88,7 @@ bool MemLoadPe::CheckPeLegality()
 	{
 		IsDll = TRUE;
 	}
-	/*
-	printf("{ %d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d }\n",
-		FileCmp.BitField.NoRelocation,
-		FileCmp.BitField.IsExecutable,
-		FileCmp.BitField.NoLineNumber,
-		FileCmp.BitField.NoSymbolMsg,
-		FileCmp.BitField.Aggressively,
-		FileCmp.BitField.Is_x64Target,
-		FileCmp.BitField.Unknown,
-		FileCmp.BitField.ReverseLowByte,
-		FileCmp.BitField.Is_x32Target,
-		FileCmp.BitField.NoDebuggingMsg,
-		FileCmp.BitField.RemovableMedia,
-		FileCmp.BitField.NetworkMedia,
-		FileCmp.BitField.IsSystemFile,
-		FileCmp.BitField.IsDllFile,
-		FileCmp.BitField.SingleProcessor,
-		FileCmp.BitField.ReverseHighByte);
-	*/
-
+	
 	return true;
 }
 
@@ -297,62 +273,6 @@ bool MemLoadPe::RepairList_BRT()
 	return true;
 }
 
-bool MemLoadPe::RepairLdrLinks()
-{
-#ifdef _WIN64
-	PPEB_WIN10X64 pPeb = (PPEB_WIN10X64)*(PULONGLONG)((ULONG_PTR)NtCurrentTeb() + 0x60);
-#else
-	PPEB_WIN10X64 pPeb = (PPEB_WIN10X64)*(PDWORD)((ULONG_PTR)NtCurrentTeb() + 0x30);
-#endif 
-	PPEB_LDR_DATA_WIN10X64 pLdr = (PPEB_LDR_DATA_WIN10X64)pPeb->Ldr;
-	PLIST_ENTRY64 HeadNode = (PLIST_ENTRY64)pLdr->InLoadOrderModuleList.Flink;
-	HeadNode = (PLIST_ENTRY64)HeadNode->Blink;
-	PLIST_ENTRY64 LastNode = (PLIST_ENTRY64)HeadNode->Blink;
-
-	printf("FirstNode = %ws\n", (PWSTR)((PLDR_DATA_TABLE_ENTRY_WIN10X64)HeadNode->Flink)->BaseDllName.Buffer);
-
-	UNICODE_STRING64 MyBaseDllName = { 0 };
-	UNICODE_STRING64 MyFullDllName = { 0 };
-	PWSTR BaseDllNameSTR = new WCHAR[130];
-	PWSTR FullDllNameSTR = new WCHAR[130];
-	ZeroMemory(BaseDllNameSTR, sizeof(WCHAR[130]));
-	ZeroMemory(FullDllNameSTR, sizeof(WCHAR[130]));
-	memcpy(BaseDllNameSTR, FileName, wcslen(FileName) * 2);
-	GetCurrentDirectoryW(MAX_PATH, FullDllNameSTR);
-	wcscat_s(FullDllNameSTR, MAX_PATH, BaseDllNameSTR);
-	printf("BaseDllName = %ws\n", BaseDllNameSTR);
-	printf("FullDllName = %ws\n", FullDllNameSTR);
-	InitUnicodeString(BaseDllNameSTR, &MyBaseDllName);
-	InitUnicodeString(FullDllNameSTR, &MyFullDllName);
-
-	PLDR_DATA_TABLE_ENTRY_WIN10X64 pMyLdrDataEntry = (PLDR_DATA_TABLE_ENTRY_WIN10X64)
-		VirtualAlloc(NULL, sizeof(LDR_DATA_TABLE_ENTRY_WIN10X64), MEM_COMMIT, PAGE_READWRITE);
-	printf("pMyLdrDataEntry = %p\n", pMyLdrDataEntry);
-	ZeroMemory(pMyLdrDataEntry, sizeof(LDR_DATA_TABLE_ENTRY_WIN10X64));
-	pMyLdrDataEntry->DllBase = LoadBaseAddress;
-	pMyLdrDataEntry->EntryPoint = (PVOID)EntryPointer;
-	pMyLdrDataEntry->SizeOfImage = PeHeader->OptionalHeader.SizeOfImage;
-	pMyLdrDataEntry->BaseDllName = MyBaseDllName;
-	pMyLdrDataEntry->FullDllName = MyFullDllName;
-	pMyLdrDataEntry->InLoadOrderLinks.Flink = (ULONGLONG)HeadNode;
-	pMyLdrDataEntry->InMemoryOrderLinks.Flink = (ULONGLONG)HeadNode + 0x10;
-	pMyLdrDataEntry->InInitializationOrderLinks.Flink = (ULONGLONG)HeadNode + 0x20;
-	pMyLdrDataEntry->InLoadOrderLinks.Blink = (ULONGLONG)LastNode;
-	pMyLdrDataEntry->InMemoryOrderLinks.Blink = (ULONGLONG)LastNode + 0x10;
-	pMyLdrDataEntry->InInitializationOrderLinks.Blink = (ULONGLONG)LastNode + 0x20;
-	pMyLdrDataEntry->LoadCount = 0xffff;
-	pMyLdrDataEntry->TlsIndex = 0xffff;
-	
-	LastNode->Flink = (ULONGLONG)pMyLdrDataEntry;
-	((PLIST_ENTRY64)((ULONGLONG)LastNode + 0x10))->Flink = (ULONGLONG)pMyLdrDataEntry + 0x10;
-	((PLIST_ENTRY64)((ULONGLONG)LastNode + 0x20))->Flink = (ULONGLONG)pMyLdrDataEntry + 0x20;
-	
-	HeadNode->Blink = (ULONGLONG)pMyLdrDataEntry;
-	((PLIST_ENTRY64)((ULONGLONG)HeadNode + 0x10))->Blink = (ULONGLONG)pMyLdrDataEntry + 0x10;
-	((PLIST_ENTRY64)((ULONGLONG)HeadNode + 0x20))->Blink = (ULONGLONG)pMyLdrDataEntry + 0x20;
-
-	return false;
-}
 
 void MemLoadPe::InitUnicodeString(PCWCH String, PUNICODE_STRING64 StringObject)
 {
@@ -360,6 +280,7 @@ void MemLoadPe::InitUnicodeString(PCWCH String, PUNICODE_STRING64 StringObject)
 	StringObject->Length = (USHORT)(wcslen(String) * 2);
 	StringObject->MaximumLength = StringObject->Length + 2;
 }
+
 
 void MemLoadPe::CallEntryPoint(MemLoadPe* Object)
 {
@@ -374,3 +295,55 @@ void MemLoadPe::CallEntryPoint(MemLoadPe* Object)
 	}
 }
 
+
+/*
+bool MemLoadPe::RepairLdrLinks()
+{
+	//*******************************************************************************************
+	//在win10系统下修复ldr_data_table_entry结构的链表并不能直接解决MFC应用程序的内存加载出错问题，其主要
+	//原因是MFC应用程序执行初始化函数时会使用GetModuleFileName函数，在其内部如果参数1（hMoudle）不为空则
+	//会执行ResolveDelayLoadedAPI函数，内存加载的MFC即便修复了ldr还是会执行失败，通过实验修改执行流程绕过
+	//ResolveDelayLoadedAPI函数走另一分支则就能正常加载出来了，可以通过HOOK函数LdrGetDllFullName,如果目
+	//标句柄是内存加载DLL的句柄就绕过ResolveDelayLoadedAPI来解决此问题。
+	//还是要注意内存加载技术的应用场景，加载MFC的意义不太大，这里就不深度研究了...
+	//*******************************************************************************************
+
+#ifdef _WIN64
+	PPEB_WIN10X64 pPeb = (PPEB_WIN10X64)*(PULONGLONG)((ULONG_PTR)NtCurrentTeb() + 0x60);
+	typedef BOOLEAN(WINAPI  *NTDLL)(OUT PUNICODE_STRING64  DestinationString, IN PCWSTR  SourceString);
+#else
+	PPEB_WIN10X64 pPeb = (PPEB_WIN10X64)*(PDWORD)((ULONG_PTR)NtCurrentTeb() + 0x30);
+#endif
+	PPEB_LDR_DATA_WIN10X64 pLdr = (PPEB_LDR_DATA_WIN10X64)pPeb->Ldr;
+	PLIST_ENTRY64 HeadNode = (PLIST_ENTRY64)pLdr->InLoadOrderModuleList.Flink;
+	HeadNode = (PLIST_ENTRY64)HeadNode->Blink;
+	PLIST_ENTRY64 LastNode = (PLIST_ENTRY64)HeadNode->Blink;
+	NTDLL RtlCreateUnicodeString = (NTDLL)GetProcAddress(GetModuleHandle(L"ntdll.dll"), "RtlCreateUnicodeString");
+
+	printf("FirstNode = %ws\n", (PWSTR)((PLDR_DATA_TABLE_ENTRY_WIN10X64)HeadNode->Flink)->BaseDllName.Buffer);
+	printf("LastNode = %ws\n", (PWSTR)((PLDR_DATA_TABLE_ENTRY_WIN10X64)LastNode)->BaseDllName.Buffer);
+
+	PLDR_DATA_TABLE_ENTRY_WIN10X64 pMyLdrDataEntry = (PLDR_DATA_TABLE_ENTRY_WIN10X64)
+		VirtualAlloc(NULL, sizeof(LDR_DATA_TABLE_ENTRY_WIN10X64), MEM_COMMIT, PAGE_READWRITE);
+	printf("pMyLdrDataEntry = %p\n", pMyLdrDataEntry);
+	pMyLdrDataEntry->DllBase = LoadBaseAddress;
+	pMyLdrDataEntry->EntryPoint = NULL;
+	pMyLdrDataEntry->SizeOfImage = PeHeader->OptionalHeader.SizeOfImage;
+	RtlCreateUnicodeString(&pMyLdrDataEntry->BaseDllName, FileName);
+	RtlCreateUnicodeString(&pMyLdrDataEntry->FullDllName, FullName);
+	pMyLdrDataEntry->FlagGroup = 0x4 | 0x4000;
+	pMyLdrDataEntry->LoadCount = -1;
+	pMyLdrDataEntry->TlsIndex = -1;
+	pMyLdrDataEntry->InLoadOrderLinks.Flink = (ULONGLONG)HeadNode;
+	pMyLdrDataEntry->InLoadOrderLinks.Blink = (ULONGLONG)LastNode;
+	PLDR_DDAG_NODE pDdag = (PLDR_DDAG_NODE)VirtualAlloc(NULL, sizeof(LDR_DDAG_NODE), MEM_COMMIT, PAGE_READWRITE);
+	pDdag->Modules.Flink = (ULONGLONG)pDdag;
+	pDdag->Modules.Blink = (ULONGLONG)pDdag;
+	pMyLdrDataEntry->DdagNode = pDdag; //结构体当中必须有它，不然插入链表后会破坏链表结构
+
+	LastNode->Flink = (ULONGLONG)pMyLdrDataEntry;
+	HeadNode->Blink = (ULONGLONG)pMyLdrDataEntry;
+	system("pause");
+	return false;
+}
+*/

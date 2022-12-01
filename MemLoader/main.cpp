@@ -12,7 +12,7 @@ int main()
 	HRSRC hRsrc = FindResource(NULL, MAKEINTRESOURCE(IDR_EXEDLL2), TEXT("EXEDLL")); //导入资源
 	HGLOBAL hGlobal = LoadResource(NULL, hRsrc);
 	PVOID lpBuffer = LockResource(hGlobal);
-	PVOID hThread = testLoad.MemLoadDll(lpBuffer,L"NoMfcDll.dll");
+	PVOID hThread = testLoad.MemLoadDll(lpBuffer);
 	printf("LoadBaseAddress = %p\n", testLoad.LoadBaseAddress);
 	printf("EntryPointer = %p\n", (PVOID)testLoad.EntryPointer);
 	printf("IsDll = %d\n", testLoad.IsDll);
