@@ -25,12 +25,12 @@ public:
 	BOOL IsDll;
 
 private:
-	bool CheckPeLegality(); //���PE��ʽ
-	bool LoadPeHeader();    //����PEͷ
-	bool LoadSectionData(); //��������
-	bool RepairList_IAT();  //�޸������ַ��
-	bool RepairList_BRT();  //�޸���ַ�ض�λ
-	//bool RepairLdrLinks();  //�޸�LDR����
+	bool CheckPeLegality(); //检查PE格式
+	bool LoadPeHeader();    //加载PE头
+	bool LoadSectionData(); //加载区段
+	bool RepairList_IAT();  //修复导入地址表
+	bool RepairList_BRT();  //修复基址重定位
+	//bool RepairLdrLinks();  //修复LDR链表
 
 	static void InitUnicodeString(PCWCH String, PUNICODE_STRING64 StringObject);
 	static void CallEntryPoint(MemLoadPe* Object);
@@ -54,27 +54,27 @@ union FileCharacteristics
 {
 	struct
 	{
-		WORD NoRelocation : 1;    //���ض�λ��
-		WORD IsExecutable : 1;    //��ִ��
-		WORD NoLineNumber : 1;    //���к���Ϣ
-		WORD NoSymbolMsg : 1;     //�޷�����Ϣ
-		WORD Aggressively : 1;    //��������̨
-		WORD Is_x64Target : 1;    //64λƽ̨
+		WORD NoRelocation : 1;    //无重定位表
+		WORD IsExecutable : 1;    //可执行
+		WORD NoLineNumber : 1;    //无行号信息
+		WORD NoSymbolMsg : 1;     //无符号信息
+		WORD Aggressively : 1;    //修正工作台
+		WORD Is_x64Target : 1;    //64位平台
 		WORD Unknown : 1;
-		WORD ReverseLowByte : 1;  //�ֽڷ�ת
-		WORD Is_x32Target : 1;    //32λƽ̨
-		WORD NoDebuggingMsg : 1;  //�޵�ʽ��Ϣ
-		WORD RemovableMedia : 1;  //λ���ƶ�����ʱ��ʾ�ƶ���������ִ��
-		WORD NetworkMedia : 1;    //λ������ʱ��ʾ�ƶ���������ִ��
-		WORD IsSystemFile : 1;    //��ϵͳ�ļ�
-		WORD IsDllFile : 1;       //�Ƕ�̬���ӿ��ļ�
-		WORD SingleProcessor : 1; //ֻ�������ڵ���������
-		WORD ReverseHighByte : 1; //��λ�ֽڷ�ת
+		WORD ReverseLowByte : 1;  //字节反转
+		WORD Is_x32Target : 1;    //32位平台
+		WORD NoDebuggingMsg : 1;  //无调式信息
+		WORD RemovableMedia : 1;  //位于移动介质时提示移动到本地在执行
+		WORD NetworkMedia : 1;    //位于网络时提示移动到本地在执行
+		WORD IsSystemFile : 1;    //是系统文件
+		WORD IsDllFile : 1;       //是动态链接库文件
+		WORD SingleProcessor : 1; //只能运行在单处理器上
+		WORD ReverseHighByte : 1; //高位字节反转
 	}BitField;
 	WORD Value;
 };
 
-/************* ��������Windows10 x64ϵͳ **************/
+/************* 仅适用于Windows10 x64系统 **************/
 
 typedef struct _PEB_WIN10X64 {
 	BYTE InheritedAddressSpace;
@@ -99,7 +99,7 @@ typedef struct _PEB_LDR_DATA_WIN10X64 {
 
 typedef struct _LDR_DDAG_NODE 
 {
-	//Win10�����д˽ṹ
+	//Win10必须有此结构
 	LIST_ENTRY64 Modules;
 	BYTE Unknown[60];
 }LDR_DDAG_NODE, *PLDR_DDAG_NODE;
@@ -153,15 +153,15 @@ typedef struct _RTL_USER_PROCESS_PARAMETERS_WIN10X64
 
 
 /***************************************************
-1������PE�ļ�ͷ
-2������SizeOfImage��С��PAGE_EXECUTE_READWRITE�ڴ�
-3�������������䵽�ڴ��Ӧ��λ��
-4���޸������ַ��
-5���޸���ַ�ض�λ��
-6��ִ����ں���dllmain()
-   ע��MFCDLL��Ҫ�޸�PEB�е�˫��������������
-   ע���ڴ���سɹ������˳��ᵼ��ĸ�����˳���
-   ���ⴴ���߳�ִ�м���ʱ�����س����˳���ĸ���Ƿ�����
-   ��װʱ���Լ����쳣��������
+1、解析PE文件头
+2、申请SizeOfImage大小的PAGE_EXECUTE_READWRITE内存
+3、将解析结果填充到内存对应的位置
+4、修复导入地址表
+5、修复基址重定位表
+6、执行入口函数dllmain()
+   注意MFC需解决GetModuleFileName函数返回失败的问题！！
+   注意内存加载成功后自退出会导致母进程退出！
+   留意创建线程执行加载时，加载程序退出后母体是否会结束
+   封装时可以加入异常处理功能
 
 ***************************************************/
