@@ -55,6 +55,11 @@ BOOL MemLoadPe::MemLoadDll(PVOID FileBuffer,PHANDLE OutThreadHandle)
 		*OutThreadHandle = ::CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)CallEntryPoint, this, 0, NULL);
 		if (*OutThreadHandle != NULL) { return TRUE; }
 	}
+	if ((ULONG_PTR)LoadBaseAddress == EntryPointer)
+	{
+		//入口偏移等于0，是带有导出库的动态链接库(没有入口函数)
+		return TRUE;
+	}
 	else
 	{
 		CallEntryPoint(this);
