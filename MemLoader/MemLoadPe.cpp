@@ -49,16 +49,16 @@ BOOL MemLoadPe::MemLoadDll(PVOID FileBuffer,PHANDLE OutThreadHandle)
 		OutputDebugString(L"[Error]MemLoadDll.RepairList_BRT failed!");
 		return FALSE;
 	}
+	if ((ULONG_PTR)LoadBaseAddress == EntryPointer)
+	{
+		//入口偏移等于0，是带有导出库的动态链接库(没有入口函数)
+		return TRUE;
+	}
 	if (OutThreadHandle != NULL)
 	{
 		//创建线程执行入口函数
 		*OutThreadHandle = ::CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)CallEntryPoint, this, 0, NULL);
 		if (*OutThreadHandle != NULL) { return TRUE; }
-	}
-	if ((ULONG_PTR)LoadBaseAddress == EntryPointer)
-	{
-		//入口偏移等于0，是带有导出库的动态链接库(没有入口函数)
-		return TRUE;
 	}
 	else
 	{
