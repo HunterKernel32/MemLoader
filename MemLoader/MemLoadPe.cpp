@@ -309,7 +309,7 @@ void MemLoadPe::CallEntryPoint(MemLoadPe* Object)
 
 PVOID MemLoadPe::GetExportFuncAddress(PCSTR FunctionName)
 {
-	if (LoadStatus == TRUE)
+	if (LoadStatus == TRUE && Mem_PeHeader->OptionalHeader.DataDirectory[0].Size > 0)
 	{
 		PDWORD FuncNameTable = (PDWORD)((ULONG_PTR)LoadBaseAddress + Mem_List_IED->AddressOfNames);
 		PDWORD FuncAddrTable = (PDWORD)((ULONG_PTR)LoadBaseAddress + Mem_List_IED->AddressOfFunctions);
