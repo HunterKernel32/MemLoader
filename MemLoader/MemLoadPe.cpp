@@ -12,6 +12,7 @@ MemLoadPe::MemLoadPe()
 	Mem_List_IID = NULL;
 	Mem_List_INT = NULL;
 	Mem_List_BRT = NULL;
+	Mem_List_IED = NULL;
 
 	FileBuffer = NULL;
 
@@ -19,6 +20,7 @@ MemLoadPe::MemLoadPe()
 	EntryPointer = 0;
 	IsDll = FALSE;
 	NeedRepairBRT = FALSE;
+	LoadStatus = FALSE;
 }
 
 MemLoadPe::~MemLoadPe()
@@ -52,17 +54,19 @@ BOOL MemLoadPe::MemLoadDll(PVOID FileBuffer,PHANDLE OutThreadHandle)
 	if ((ULONG_PTR)LoadBaseAddress == EntryPointer)
 	{
 		//入口偏移等于0，是带有导出库的动态链接库(没有入口函数)
+		LoadStatus = TRUE;
 		return TRUE;
 	}
 	if (OutThreadHandle != NULL)
 	{
 		//创建线程执行入口函数
 		*OutThreadHandle = ::CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)CallEntryPoint, this, 0, NULL);
-		if (*OutThreadHandle != NULL) { return TRUE; }
+		if (*OutThreadHandle != NULL) { LoadStatus = TRUE;  return TRUE; }
 	}
 	else
 	{
 		CallEntryPoint(this);
+		LoadStatus = TRUE;
 		return TRUE;
 	}
 
@@ -165,6 +169,8 @@ bool MemLoadPe::LoadSectionData()
 		Mem_PeHeader->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT].VirtualAddress);
 	Mem_List_BRT = (PIMAGE_BASE_RELOCATION)((ULONG_PTR)LoadBaseAddress + 
 		Mem_PeHeader->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_BASERELOC].VirtualAddress);
+	Mem_List_IED = (PIMAGE_EXPORT_DIRECTORY)((ULONG_PTR)LoadBaseAddress + 
+		Mem_PeHeader->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT].VirtualAddress);
 	EntryPointer = (ULONG_PTR)LoadBaseAddress + Mem_PeHeader->OptionalHeader.AddressOfEntryPoint;
 	return true;
 }
@@ -286,13 +292,6 @@ bool MemLoadPe::RepairList_BRT()
 }
 
 
-void MemLoadPe::InitUnicodeString(PCWCH String, PUNICODE_STRING64 StringObject)
-{
-	StringObject->Buffer = (ULONG_PTR)String;
-	StringObject->Length = (USHORT)(wcslen(String) * 2);
-	StringObject->MaximumLength = StringObject->Length + 2;
-}
-
 
 void MemLoadPe::CallEntryPoint(MemLoadPe* Object)
 {
@@ -307,6 +306,26 @@ void MemLoadPe::CallEntryPoint(MemLoadPe* Object)
 	}
 }
 
+
+PVOID MemLoadPe::GetExportFuncAddress(PCSTR FunctionName)
+{
+	if (LoadStatus == TRUE)
+	{
+		PDWORD FuncNameTable = (PDWORD)((ULONG_PTR)LoadBaseAddress + Mem_List_IED->AddressOfNames);
+		PDWORD FuncAddrTable = (PDWORD)((ULONG_PTR)LoadBaseAddress + Mem_List_IED->AddressOfFunctions);
+
+		for (DWORD i = 0; i < Mem_List_IED->NumberOfNames; i++)
+		{
+			if (strcmp(FunctionName, (PCSTR)((ULONG_PTR)LoadBaseAddress + *FuncNameTable)) == 0)
+			{
+				return (PVOID)((ULONG_PTR)LoadBaseAddress + *FuncAddrTable);
+			}
+			FuncNameTable++;
+			FuncAddrTable++;
+		}
+	}
+	return NULL;
+}
 
 /*
 bool MemLoadPe::RepairLdrLinks()

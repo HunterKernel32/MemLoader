@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 /*****************************************/
 typedef struct _STRING64 {
@@ -20,6 +20,7 @@ public:
 	~MemLoadPe();
 public:
 	BOOL MemLoadDll(PVOID FileBuffer, PHANDLE OutThreadHandle);
+	PVOID GetExportFuncAddress(PCSTR FunctionName);
 	ULONG_PTR EntryPointer;
 	PVOID LoadBaseAddress;
 	BOOL IsDll;
@@ -32,7 +33,6 @@ private:
 	bool RepairList_BRT();  //修复基址重定位
 	//bool RepairLdrLinks();  //修复LDR链表
 
-	static void InitUnicodeString(PCWCH String, PUNICODE_STRING64 StringObject);
 	static void CallEntryPoint(MemLoadPe* Object);
 
 private:
@@ -44,9 +44,11 @@ private:
 	PIMAGE_IMPORT_DESCRIPTOR Mem_List_IID;
 	PIMAGE_THUNK_DATA Mem_List_INT;
 	PIMAGE_BASE_RELOCATION Mem_List_BRT;
+	PIMAGE_EXPORT_DIRECTORY Mem_List_IED;
 
 	PVOID FileBuffer;
 	BOOL NeedRepairBRT;
+	BOOL LoadStatus;
 };
 
 

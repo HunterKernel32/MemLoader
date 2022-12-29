@@ -16,6 +16,7 @@ int main()
 	printf("LoadBaseAddress = %p\n", testLoad.LoadBaseAddress);
 	printf("EntryPointer = %p\n", (PVOID)testLoad.EntryPointer);
 	printf("IsDll = %d\n", testLoad.IsDll);
+	printf("CheckVMWare1 = %p\n", testLoad.GetExportFuncAddress("CheckVMWare1"));
 	FreeResource(hGlobal);
 	system("pause");
 	printf("is runing!\n");
