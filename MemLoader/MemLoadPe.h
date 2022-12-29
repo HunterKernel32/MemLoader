@@ -19,7 +19,7 @@ public:
 	MemLoadPe();
 	~MemLoadPe();
 public:
-	HANDLE MemLoadDll(PVOID FileBuffer);
+	BOOL MemLoadDll(PVOID FileBuffer, PHANDLE OutThreadHandle);
 	ULONG_PTR EntryPointer;
 	PVOID LoadBaseAddress;
 	BOOL IsDll;

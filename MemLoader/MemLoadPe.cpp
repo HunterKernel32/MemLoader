@@ -26,33 +26,42 @@ MemLoadPe::~MemLoadPe()
 	
 }
 
-HANDLE MemLoadPe::MemLoadDll(PVOID FileBuffer)
+BOOL MemLoadPe::MemLoadDll(PVOID FileBuffer,PHANDLE OutThreadHandle)
 {
 	this->FileBuffer = FileBuffer;
 	if (LoadPeHeader() == false)
 	{
-		printf("LoadPeHeader Error!\n");
-		return NULL;
+		OutputDebugString(L"[Error]MemLoadDll.LoadPeHeader failed!");
+		return FALSE;
 	}
 	if (LoadSectionData() == false)
 	{
-		printf("LoadSectionData Error!\n");
-		return NULL;
+		OutputDebugString(L"[Error]MemLoadDll.LoadSectionData failed!");
+		return FALSE;
 	}
 	if (RepairList_IAT() == false)
 	{
-		printf("RepairList_IAT Error!\n");
-		return NULL;
+		OutputDebugString(L"[Error]MemLoadDll.RepairList_IAT failed!");
+		return FALSE;
 	}
 	if (RepairList_BRT() == false)
 	{
-		printf("RepairList_BRT Error!\n");
-		return NULL;
+		OutputDebugString(L"[Error]MemLoadDll.RepairList_BRT failed!");
+		return FALSE;
+	}
+	if (OutThreadHandle != NULL)
+	{
+		//创建线程执行入口函数
+		*OutThreadHandle = ::CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)CallEntryPoint, this, 0, NULL);
+		if (*OutThreadHandle != NULL) { return TRUE; }
+	}
+	else
+	{
+		CallEntryPoint(this);
+		return TRUE;
 	}
 
-	//CallEntryPoint(this);
-	HANDLE hThread = ::CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)CallEntryPoint, this, 0, NULL);
-	return hThread;
+	return FALSE;
 }
 
 
@@ -60,20 +69,20 @@ bool MemLoadPe::CheckPeLegality()
 {
 	if (DosHeader->e_magic != IMAGE_DOS_SIGNATURE || PeHeader->Signature != IMAGE_NT_SIGNATURE)
 	{
-		printf("This is not a PE file!\n");
+		OutputDebugString(L"This is not a PE file!");
 		return false;
 	}
 
 #ifdef _WIN64
 	if (PeHeader->FileHeader.Machine != IMAGE_FILE_MACHINE_AMD64)
 	{
-		printf("This is not a x64 file!\n");
+		OutputDebugString(L"This is not a x64 file!");
 		return false;
 	}
 #else
 	if (PeHeader->FileHeader.Machine != IMAGE_FILE_MACHINE_I386)
 	{
-		printf("This is not a x32 file!\n");
+		OutputDebugString(L"This is not a x32 file!");
 		return false;
 	}
 #endif
@@ -107,11 +116,9 @@ bool MemLoadPe::LoadPeHeader()
 
 	if (PeHeader->OptionalHeader.DataDirectory[5].Size == 0)
 	{
-		//printf("Not have BRT list!\n");
-
+		//尝试在预加载地址申请内存
 		LoadBaseAddress = VirtualAlloc((LPVOID)PeHeader->OptionalHeader.ImageBase, 
 			PeHeader->OptionalHeader.SizeOfImage, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
-		printf("VirtualAlloc = %p\n", LoadBaseAddress);
 		if (LoadBaseAddress == NULL) { return false; }
 		NeedRepairBRT = FALSE; //无需修复重定位
 	}
