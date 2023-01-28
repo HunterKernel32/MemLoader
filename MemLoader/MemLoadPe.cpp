@@ -53,7 +53,7 @@ BOOL MemLoadPe::MemLoadDll(PVOID FileBuffer,PHANDLE OutThreadHandle)
 	}
 	if ((ULONG_PTR)LoadBaseAddress == EntryPointer)
 	{
-		//入口偏移等于0，是带有导出库的动态链接库(没有入口函数)
+		//入口偏移等于0(没有入口函数)
 		LoadStatus = TRUE;
 		return TRUE;
 	}
