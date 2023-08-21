@@ -155,7 +155,7 @@ bool MemLoadPe::LoadSectionData()
 		if (SectionHeader->SizeOfRawData != 0 && SectionHeader->VirtualAddress != 0) 
 		{
 			Copy_Start = (PVOID)((ULONG_PTR)DosHeader + SectionHeader->PointerToRawData);
-			Copy_Length = SectionHeader->SizeOfRawData;//注意不能用VirtualSize,因为它在联合体中有歧义
+			Copy_Length = SectionHeader->SizeOfRawData;//不能用VirtualSize
 			Copy_TargetAddr = (PVOID)((ULONG_PTR)LoadBaseAddress + SectionHeader->VirtualAddress);
 			memcpy(Copy_TargetAddr, Copy_Start, Copy_Length);
 		}
@@ -212,7 +212,6 @@ bool MemLoadPe::RepairList_IAT()
 		pFuncAddr = (PULONG_PTR)((ULONG_PTR)LoadBaseAddress + Mem_List_IID->FirstThunk);
 		Mem_List_INT = (PIMAGE_THUNK_DATA)((ULONG_PTR)LoadBaseAddress + Mem_List_IID->OriginalFirstThunk);
 
-		//printf("DllName :%s\n", DllName);
 		hModule = LoadLibraryA(DllName);
 		if (hModule == NULL)
 		{
@@ -237,8 +236,6 @@ bool MemLoadPe::RepairList_IAT()
 				//通过名称取函数地址
 				pFuncName = (PIMAGE_IMPORT_BY_NAME)((ULONG_PTR)LoadBaseAddress + Mem_List_INT->u1.AddressOfData);
 				*pFuncAddr = (ULONG_PTR)GetProcAddress(hModule, pFuncName->Name);
-				//printf("0x%llX", *pFuncAddr);
-				//printf(" || %s\n", pFuncName->Name);
 			}
 			Mem_List_INT++;
 			pFuncAddr++;
@@ -254,36 +251,31 @@ bool MemLoadPe::RepairList_BRT()
 	if (NeedRepairBRT == FALSE) { return true; }
 
 	int TypeOffsetCount = 0;
+
 	struct MyWord
 	{
 		WORD VA : 12;
 		WORD Type : 4;
 	}*pTypeOffset = NULL;
-	INT_PTR Difference = (INT_PTR)((ULONG_PTR)  //差值可以为负数
-		LoadBaseAddress - PeHeader->OptionalHeader.ImageBase);
+
+	INT_PTR Difference = (INT_PTR)((ULONG_PTR)LoadBaseAddress - PeHeader->OptionalHeader.ImageBase);
 	PINT_PTR RepairAddr = NULL;
 
 	while (Mem_List_BRT->VirtualAddress != 0)
 	{
-		//printf("0x%08X :\n", Mem_List_BRT->VirtualAddress);
-
-		TypeOffsetCount = (Mem_List_BRT->SizeOfBlock - 8) / 2;
-		pTypeOffset = (MyWord*)((ULONG_PTR)Mem_List_BRT + 8);
+		TypeOffsetCount = (Mem_List_BRT->SizeOfBlock - sizeof(IMAGE_BASE_RELOCATION)) / 2;
+		pTypeOffset = (MyWord*)((ULONG_PTR)Mem_List_BRT + sizeof(IMAGE_BASE_RELOCATION));
 
 		for (int i = 0; i < TypeOffsetCount; i++)
 		{
 			if (pTypeOffset->Type != IMAGE_REL_BASED_ABSOLUTE)
 			{
-				RepairAddr = (PINT_PTR)((ULONG_PTR)LoadBaseAddress +
-					Mem_List_BRT->VirtualAddress + pTypeOffset->VA);
-				if (*RepairAddr <= 0) { return false; }
+                RepairAddr = (PINT_PTR)((ULONG_PTR)LoadBaseAddress + Mem_List_BRT->VirtualAddress + pTypeOffset->VA);
 				*RepairAddr += Difference; 
-				//printf("0x%llX\n", *RepairAddr);
 			}
 			pTypeOffset++;
 		}
-		Mem_List_BRT = (PIMAGE_BASE_RELOCATION)
-			((ULONG_PTR)Mem_List_BRT + Mem_List_BRT->SizeOfBlock);
+        Mem_List_BRT = (PIMAGE_BASE_RELOCATION)((ULONG_PTR)Mem_List_BRT + Mem_List_BRT->SizeOfBlock);
 	}
 	
 	Mem_PeHeader->OptionalHeader.ImageBase = (ULONG_PTR)LoadBaseAddress;
@@ -313,17 +305,18 @@ PVOID MemLoadPe::GetExportFuncAddress(PCSTR FunctionName)
 	{
 		PDWORD FuncNameTable = (PDWORD)((ULONG_PTR)LoadBaseAddress + Mem_List_IED->AddressOfNames);
 		PDWORD FuncAddrTable = (PDWORD)((ULONG_PTR)LoadBaseAddress + Mem_List_IED->AddressOfFunctions);
+        PWORD NameIndexTable = (PWORD)((ULONG_PTR)LoadBaseAddress + Mem_List_IED->AddressOfNameOrdinals);
 
-		for (DWORD i = 0; i < Mem_List_IED->NumberOfNames; i++)
-		{
-			if (strcmp(FunctionName, (PCSTR)((ULONG_PTR)LoadBaseAddress + *FuncNameTable)) == 0)
-			{
-				return (PVOID)((ULONG_PTR)LoadBaseAddress + *FuncAddrTable);
-			}
-			FuncNameTable++;
-			FuncAddrTable++;
-		}
+        for (DWORD i = 0; i < Mem_List_IED->NumberOfNames; i++)
+        {
+            LPCSTR Name = (LPCSTR)((PUCHAR)LoadBaseAddress + FuncNameTable[i]);
+            if (strcmp(FunctionName, Name) == 0)
+            {
+                return (PUCHAR)LoadBaseAddress + FuncAddrTable[NameIndexTable[i]];
+            }
+        }
 	}
+
 	return NULL;
 }
 
