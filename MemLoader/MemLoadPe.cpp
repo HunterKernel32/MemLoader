@@ -324,6 +324,7 @@ PVOID MemLoadPe::GetExportFuncAddress(PCSTR FunctionName)
 bool MemLoadPe::RepairLdrLinks()
 {
 	//*******************************************************************************************
+    //若不将映像挂入链表中，则映像内的SEH都不会发生作用
 	//在win10系统下修复ldr_data_table_entry结构的链表并不能直接解决MFC应用程序的内存加载出错问题，其主要
 	//原因是MFC应用程序执行初始化函数时会使用GetModuleFileName函数，在其内部如果参数1（hMoudle）不为空则
 	//会执行ResolveDelayLoadedAPI函数，内存加载的MFC即便修复了ldr还是会执行失败，通过实验修改执行流程绕过
@@ -363,7 +364,7 @@ bool MemLoadPe::RepairLdrLinks()
 	PLDR_DDAG_NODE pDdag = (PLDR_DDAG_NODE)VirtualAlloc(NULL, sizeof(LDR_DDAG_NODE), MEM_COMMIT, PAGE_READWRITE);
 	pDdag->Modules.Flink = (ULONGLONG)pDdag;
 	pDdag->Modules.Blink = (ULONGLONG)pDdag;
-	pMyLdrDataEntry->DdagNode = pDdag; //结构体当中必须有它，不然插入链表后会破坏链表结构
+	pMyLdrDataEntry->DdagNode = pDdag; //结构体当中必须有它(win10以下的可能没有)
 
 	LastNode->Flink = (ULONGLONG)pMyLdrDataEntry;
 	HeadNode->Blink = (ULONGLONG)pMyLdrDataEntry;
