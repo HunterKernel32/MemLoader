@@ -324,7 +324,12 @@ PVOID MemLoadPe::GetExportFuncAddress(PCSTR FunctionName)
 bool MemLoadPe::RepairLdrLinks()
 {
 	//*******************************************************************************************
-    //若不将映像挂入链表中，则映像内的SEH都不会发生作用
+    //关于内存加载后，加载的模块无法正常使用SEH异常处理的解决方案：
+    //方案1：将_KPROCESS._KEXECUTE_OPTIONS.ImageDispatchEnable置1(需要r0权限),或关DEP数据执行保护
+    //可以被NtQueryInformationProcess(,ProcessExecuteFlags)检测到..    (x86)
+    //方案2：将加载的映像插入ldr_data_table_entry链表中     (x86)
+    //方案3：注册VEH，如果EIP属于加载的模块，就手动派遣到fs:[0]->Handle  (x86)
+    //方案4：解析PE格式下的异常表，依次调用RtlAddFunctionTable将其添加到动态函数表  (x64)
 	//在win10系统下修复ldr_data_table_entry结构的链表并不能直接解决MFC应用程序的内存加载出错问题，其主要
 	//原因是MFC应用程序执行初始化函数时会使用GetModuleFileName函数，在其内部如果参数1（hMoudle）不为空则
 	//会执行ResolveDelayLoadedAPI函数，内存加载的MFC即便修复了ldr还是会执行失败，通过实验修改执行流程绕过

@@ -82,6 +82,7 @@
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
+      <DataExecutionPrevention>true</DataExecutionPrevention>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
