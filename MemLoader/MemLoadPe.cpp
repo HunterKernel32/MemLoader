@@ -311,7 +311,7 @@ PVOID MemLoadPe::GetExportFuncAddress(PCSTR FunctionName)
         {
             LPCSTR Name = (LPCSTR)((PUCHAR)LoadBaseAddress + FuncNameTable[i]);
             if (strcmp(FunctionName, Name) == 0)
-            {
+            { //未考虑目标地址是转发器的情况
                 return (PUCHAR)LoadBaseAddress + FuncAddrTable[NameIndexTable[i]];
             }
         }
