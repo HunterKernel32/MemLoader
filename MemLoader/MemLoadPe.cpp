@@ -155,7 +155,7 @@ bool MemLoadPe::LoadSectionData()
 		if (SectionHeader->SizeOfRawData != 0 && SectionHeader->VirtualAddress != 0) 
 		{
 			Copy_Start = (PVOID)((ULONG_PTR)DosHeader + SectionHeader->PointerToRawData);
-			Copy_Length = SectionHeader->SizeOfRawData;//不能用VirtualSize
+			Copy_Length = SectionHeader->SizeOfRawData;//不能用VirtualSize(.data中的BBS)
 			Copy_TargetAddr = (PVOID)((ULONG_PTR)LoadBaseAddress + SectionHeader->VirtualAddress);
 			memcpy(Copy_TargetAddr, Copy_Start, Copy_Length);
 		}
