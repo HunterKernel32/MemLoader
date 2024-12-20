@@ -224,8 +224,14 @@ bool MemLoadPe::RepairList_IAT()
 		}
 		while (*pFuncAddr != 0)
 		{
-			TempUnio.Value = Mem_List_INT->u1.AddressOfData;
-
+            if (Mem_List_IID->OriginalFirstThunk) {
+                TempUnio.Value = Mem_List_INT->u1.AddressOfData;
+                Mem_List_INT++;
+            }
+            else
+            {
+                TempUnio.Value = *pFuncAddr;
+            }
 			if (TempUnio.BitField.high == 1)
 			{
 				//通过序号取函数地址
@@ -234,10 +240,10 @@ bool MemLoadPe::RepairList_IAT()
 			else
 			{
 				//通过名称取函数地址
-				pFuncName = (PIMAGE_IMPORT_BY_NAME)((ULONG_PTR)LoadBaseAddress + Mem_List_INT->u1.AddressOfData);
+				pFuncName = (PIMAGE_IMPORT_BY_NAME)((ULONG_PTR)LoadBaseAddress + TempUnio.Value);
 				*pFuncAddr = (ULONG_PTR)GetProcAddress(hModule, pFuncName->Name);
 			}
-			Mem_List_INT++;
+
 			pFuncAddr++;
 		}
 
